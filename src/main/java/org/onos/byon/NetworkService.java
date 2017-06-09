@@ -72,17 +72,6 @@ public interface NetworkService {
      */
     Set<HostId> getHosts(String network);
 
-    /**
-     * Register a listener for network events.
-     *
-     * @param listener listener
-     */
-    //TODO Lab 6: Add addListener to the interface (uncomment the line)
 
-    /**
-     * Unregister a listener for network events.
-     *
-     * @param listener listener
-     */
-    //TODO Lab 6: Add removeListener to the interface (uncomment the line)
+
 }

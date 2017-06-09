@@ -27,6 +27,7 @@ import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
 import org.onosproject.event.EventDeliveryService;
 import org.onosproject.event.ListenerRegistry;
+import org.onosproject.net.Host;
 import org.onosproject.net.HostId;
 import org.onosproject.net.intent.HostToHostIntent;
 import org.onosproject.net.intent.Intent;
@@ -66,8 +67,8 @@ public class NetworkManager implements NetworkService {
      *
      * All you need to do is uncomment the following two lines.
      */
-    //@Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    //protected IntentService intentService;
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected IntentService intentService;
 
 
     /*
@@ -75,8 +76,8 @@ public class NetworkManager implements NetworkService {
      *
      * All you need to do is uncomment the following two lines.
      */
-    //@Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    //protected EventDeliveryService eventDispatcher;
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected EventDeliveryService eventDispatcher;
 
     /*
      * TODO Lab 6: Construct a ListenerRegistry<NetworkEvent, NetworkListener>
@@ -84,11 +85,16 @@ public class NetworkManager implements NetworkService {
      * This will be used to keep track of external listeners.
      */
 
+
+
+    private final ListenerRegistry<NetworkEvent, NetworkListener>
+            listenerRegistry = new ListenerRegistry<>();
     /*
      * TODO Lab 6: Instantiate a NetworkStoreDelegate
      *
      * You will first need to implement the class (at the bottom of the file).
      */
+    NetworkStoreDelegate networkStoreDelegate = new InternalStoreDelegate();
 
     protected ApplicationId appId;
 
@@ -101,6 +107,8 @@ public class NetworkManager implements NetworkService {
          * 1. Add the listener registry to the event dispatcher using eventDispatcher.addSink()
          * 2. Set the delegate in the store
          */
+        eventDispatcher.addSink(NetworkEvent.class,listenerRegistry);
+        store.setDelegate(networkStoreDelegate);
         log.info("Started");
     }
 
@@ -112,6 +120,8 @@ public class NetworkManager implements NetworkService {
          * 1. Remove the event class from the event dispatcher using eventDispatcher.removeSink()
          * 2. Unset the delegate from the store
          */
+        eventDispatcher.removeSink(NetworkEvent.class);
+        store.unsetDelegate(networkStoreDelegate);
         log.info("Stopped");
     }
 
@@ -122,6 +132,7 @@ public class NetworkManager implements NetworkService {
         /*
          * TODO Lab 2: Add the network to the store
          */
+        store.putNetwork(network);
     }
 
     @Override
@@ -129,10 +140,18 @@ public class NetworkManager implements NetworkService {
         checkNotNull(network, "Network name cannot be null");
         /*
          * TODO Lab 2: Remove the network from the store
+         *
          */
         /*
          * TODO Lab 4: Remove the intents when the network is deleted
+         *
          */
+
+        Set<HostId>hostIds=store.getHosts(network);
+        for(HostId hostId:hostIds){
+            removeHost(network,hostId);
+        }
+        store.removeNetwork(network);
     }
 
     @Override
@@ -140,7 +159,7 @@ public class NetworkManager implements NetworkService {
         /*
          * TODO Lab 2: Get the networks from the store and return them
          */
-        return ImmutableSet.of("my-network"); // TODO remove this line before starting lab 2
+        return store.getNetworks(); // TODO remove this line before starting lab 2
     }
 
     @Override
@@ -154,6 +173,10 @@ public class NetworkManager implements NetworkService {
          *     You only need to add the intents if this is the first time that
          *     the host is added. (Check the store's return value)
          */
+        if(store.addHost(network,hostId)) {
+            addIntents(network,hostId,this.getHosts(network));
+        }
+
     }
 
     @Override
@@ -164,7 +187,11 @@ public class NetworkManager implements NetworkService {
          * TODO Lab 2: Remove the host from the network in the store
          *
          * TODO Lab 4: Remove the host's intents from the network
+         *
          */
+
+        removeIntents(network, Optional.ofNullable(hostId));
+        store.removeHost(network,hostId);
     }
 
     @Override
@@ -173,7 +200,7 @@ public class NetworkManager implements NetworkService {
         /*
          * TODO Lab 2: Retrieve the hosts from the store and return them
          */
-        return ImmutableSet.of(); // TODO remove this line before starting lab 2
+        return store.getHosts(network); // TODO remove this line before starting lab 2
     }
 
     /**
@@ -192,6 +219,15 @@ public class NetworkManager implements NetworkService {
          * 2. Generate the intent key using generateKey(), so they can be removed later
          * 3. Submit the intents using intentService.submit()
          */
+        for(HostId dst:hostsInNet){
+            Intent intent = HostToHostIntent.builder()
+                    .appId(appId)
+                    .key(generateKey(network, src, dst))
+                    .one(src)
+                    .two(dst)
+                    .build();
+            intentService.submit(intent);
+        }
     }
 
     /**
@@ -208,6 +244,13 @@ public class NetworkManager implements NetworkService {
          * 2. Using matches() to filter intents for this network and hostId
          * 3. Withdrawn intentService.withdraw()
          */
+        for(Intent intent:intentService.getIntents()){
+            if(matches(network,hostId,intent)){
+                intentService.withdraw(intent);
+            }
+
+        }
+
     }
 
     /**
@@ -261,4 +304,10 @@ public class NetworkManager implements NetworkService {
      * The class should implement the NetworkStoreDelegate interface and
      * its notify method.
      */
+    private class InternalStoreDelegate implements NetworkStoreDelegate {
+        @Override
+        public void notify(NetworkEvent event) {
+            eventDispatcher.post(event);
+        }
+    }
 }

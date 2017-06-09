@@ -25,8 +25,11 @@ import org.apache.felix.scr.annotations.Deactivate;
 import org.apache.felix.scr.annotations.Reference;
 import org.apache.felix.scr.annotations.ReferenceCardinality;
 import org.apache.felix.scr.annotations.Service;
+import org.onosproject.core.ApplicationId;
 import org.onosproject.net.HostId;
 import org.onosproject.store.AbstractStore;
+import org.onosproject.store.Store;
+import org.onosproject.store.app.DistributedApplicationStore;
 import org.onosproject.store.serializers.KryoNamespaces;
 import org.onosproject.store.service.ConsistentMap;
 import org.onosproject.store.service.MapEvent;
@@ -42,6 +45,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.maven.project.builder.ProjectUri.MailingLists.MailingList.post;
+import static org.onos.byon.NetworkEvent.Type.NETWORK_ADD;
+import static org.onos.byon.NetworkEvent.Type.NETWORK_REMOVE;
+import static org.onos.byon.NetworkEvent.Type.NETWORK_UPDATE;
 
 /**
  * Network Store implementation backed by consistent map.
@@ -49,7 +56,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 @Component(immediate = true)
 @Service
 public class DistributedNetworkStore
-        // TODO Lab 6: Extend the AbstractStore class for the store delegate
+        extends AbstractStore<NetworkEvent, NetworkStoreDelegate>
         implements NetworkStore {
 
     private static Logger log = LoggerFactory.getLogger(DistributedNetworkStore.class);
@@ -59,19 +66,20 @@ public class DistributedNetworkStore
      *
      * All you need to do is uncomment the following two lines.
      */
-    //@Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
-    //protected StorageService storageService;
+    @Reference(cardinality = ReferenceCardinality.MANDATORY_UNARY)
+    protected StorageService storageService;
 
     /*
      * TODO Lab 5: Replace the ConcurrentMap with ConsistentMap
      */
-    private ConcurrentMap<String, Set<HostId>> networks;
 
+    private ConsistentMap<String, Set<HostId>> nets;
     /*
      * TODO Lab 6: Create a listener instance of InternalListener
      *
      * You will first need to implement the class (at the bottom of the file).
      */
+    InternalListener internalListener = new InternalListener();
 
     @Activate
     public void activate() {
@@ -81,13 +89,16 @@ public class DistributedNetworkStore
          * You should use storageService.consistentMapBuilder(), and the
          * serializer: Serializer.using(KryoNamespaces.API)
          */
-        networks = Maps.newConcurrentMap();
+
+        nets=storageService.<String,Set<HostId>>consistentMapBuilder().withSerializer(Serializer.using(KryoNamespaces.API)).withName("onos-byon").build();
+
 
         /*
          * TODO Lab 6: Add the listener to the networks map
          *
          * Use networks.addListener()
          */
+        nets.addListener(internalListener);
         log.info("Started");
     }
 
@@ -98,22 +109,23 @@ public class DistributedNetworkStore
          *
          * Use networks.removeListener()
          */
+        nets.removeListener(internalListener);
         log.info("Stopped");
     }
 
     @Override
     public void putNetwork(String network) {
-        networks.putIfAbsent(network, Sets.<HostId>newHashSet());
+        nets.putIfAbsent(network, Sets.<HostId>newHashSet());
     }
 
     @Override
     public void removeNetwork(String network) {
-        networks.remove(network);
+        nets.remove(network);
     }
 
     @Override
     public Set<String> getNetworks() {
-        return ImmutableSet.copyOf(networks.keySet());
+        return ImmutableSet.copyOf(nets.keySet());
     }
 
     @Override
@@ -123,13 +135,12 @@ public class DistributedNetworkStore
          *
          * You will also need to extract the value in the if statement.
          */
-        Set<HostId> existingHosts = checkNotNull(networks.get(network),
-                                                            "Network %s does not exist", network);
+        Set<HostId> existingHosts = Versioned.valueOrNull(nets.get(network));
         if (existingHosts.contains(hostId)) {
             return false;
         }
 
-        networks.computeIfPresent(network,
+        nets.computeIfPresent(network,
                                   (k, v) -> {
                                       Set<HostId> result = Sets.newHashSet(v);
                                       result.add(hostId);
@@ -143,8 +154,8 @@ public class DistributedNetworkStore
         /*
          * TODO Lab 5: Update the Set to Versioned<Set<HostId>>
          */
-        Set<HostId> hosts =
-                networks.computeIfPresent(network,
+        Versioned<Set<HostId>> hosts =
+                nets.computeIfPresent(network,
                                           (k, v) -> {
                                               Set<HostId> result = Sets.newHashSet(v);
                                               result.remove(hostId);
@@ -160,9 +171,11 @@ public class DistributedNetworkStore
          *
          * ConsistentMap returns a Versioned<V>, so you need to extract the value
          */
-        return checkNotNull(networks.get(network),
-                            "Please create the network first");
+        return   Versioned.valueOrNull(nets.get(network));
+
     }
+
+
 
     /*
      * TODO Lab 6: Implement an InternalListener class for remote map events
@@ -170,5 +183,27 @@ public class DistributedNetworkStore
      * The class should implement the MapEventListener interface and
      * its event method.
      */
+
+    private class InternalListener implements MapEventListener<String, Set<HostId>> {
+        @Override
+        public void event(MapEvent<String, Set<HostId>> mapEvent) {
+            final NetworkEvent.Type type;
+            switch (mapEvent.type()) {
+                case INSERT:
+                    type = NETWORK_ADD;
+                    break;
+                case UPDATE:
+                    type = NETWORK_UPDATE;
+                    break;
+                case REMOVE:
+                default:
+                    type = NETWORK_REMOVE;
+                    break;
+            }
+            notifyDelegate(new NetworkEvent(type, mapEvent.key()));
+        }
+    }
+
+
 
 }
