@@ -203,6 +203,16 @@ public class NetworkManager implements NetworkService {
         return store.getHosts(network); // TODO remove this line before starting lab 2
     }
 
+    @Override
+    public void addListeners(NetworkListener listener) {
+        listenerRegistry.addListener(listener);
+    }
+
+    @Override
+    public void removeListeners(NetworkListener listener) {
+        listenerRegistry.removeListener(listener);
+    }
+
     /**
      * Adds an intent between a new host and all others in the network.
      *
@@ -307,6 +317,7 @@ public class NetworkManager implements NetworkService {
     private class InternalStoreDelegate implements NetworkStoreDelegate {
         @Override
         public void notify(NetworkEvent event) {
+            log.info("Post Event");
             eventDispatcher.post(event);
         }
     }

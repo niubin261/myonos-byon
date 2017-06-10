@@ -71,7 +71,8 @@ public interface NetworkService {
      * @return set of host ids
      */
     Set<HostId> getHosts(String network);
-
+    void addListeners(NetworkListener listener);
+    void removeListeners(NetworkListener listener);
 
 
 }

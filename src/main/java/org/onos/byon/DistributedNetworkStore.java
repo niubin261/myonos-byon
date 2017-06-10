@@ -59,7 +59,7 @@ public class DistributedNetworkStore
         extends AbstractStore<NetworkEvent, NetworkStoreDelegate>
         implements NetworkStore {
 
-    private static Logger log = LoggerFactory.getLogger(DistributedNetworkStore.class);
+    private  Logger log = LoggerFactory.getLogger(DistributedNetworkStore.class);
 
     /*
      * TODO Lab 5: Get a reference to the storage service
@@ -90,7 +90,9 @@ public class DistributedNetworkStore
          * serializer: Serializer.using(KryoNamespaces.API)
          */
 
-        nets=storageService.<String,Set<HostId>>consistentMapBuilder().withSerializer(Serializer.using(KryoNamespaces.API)).withName("onos-byon").build();
+        nets=storageService.<String,Set<HostId>>consistentMapBuilder()
+                .withSerializer(Serializer.using(KryoNamespaces.API))
+                .withName("onos-byon").build();
 
 
         /*
@@ -200,6 +202,7 @@ public class DistributedNetworkStore
                     type = NETWORK_REMOVE;
                     break;
             }
+            log.info("notifyDelegate Event");
             notifyDelegate(new NetworkEvent(type, mapEvent.key()));
         }
     }
