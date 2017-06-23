@@ -29,7 +29,7 @@ import org.onosproject.core.ApplicationId;
 import org.onosproject.net.HostId;
 import org.onosproject.store.AbstractStore;
 import org.onosproject.store.Store;
-import org.onosproject.store.app.DistributedApplicationStore;
+
 import org.onosproject.store.serializers.KryoNamespaces;
 import org.onosproject.store.service.ConsistentMap;
 import org.onosproject.store.service.MapEvent;
@@ -45,7 +45,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.apache.maven.project.builder.ProjectUri.MailingLists.MailingList.post;
+
 import static org.onos.byon.NetworkEvent.Type.NETWORK_ADD;
 import static org.onos.byon.NetworkEvent.Type.NETWORK_REMOVE;
 import static org.onos.byon.NetworkEvent.Type.NETWORK_UPDATE;
@@ -206,7 +206,6 @@ public class DistributedNetworkStore
             notifyDelegate(new NetworkEvent(type, mapEvent.key()));
         }
     }
-
 
 
 }
